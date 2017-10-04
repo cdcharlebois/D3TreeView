@@ -136,14 +136,16 @@ define([
             }
 
             this._tree = d3.layout.tree()
-                .size([2 * Math.PI, 500]) // radians, 500 pixels https://github.com/d3/d3-3.x-api-reference/blob/master/Tree-Layout.md
-                .separation(function(a, b) { return (a.parent === b.parent ? 1 : 2) / a.depth; });
+                .size([360, 300]); // radians, 500 pixels https://github.com/d3/d3-3.x-api-reference/blob/master/Tree-Layout.md
+            // .separation(function(a, b) { return (a.parent === b.parent ? 1 : 2) / a.depth; });
 
             // define a d3 diagonal projection for use by the node paths later on.
-            this._diagonal = d3.svg.diagonal()
-                .projection(function(d) {
-                    return [d.y, d.x];
-                });
+            this._diagonal = d3.svg.diagonal.radial()
+                .projection(function(d) { return [d.y, d.x / 180 * Math.PI]; });
+
+            // .projection(function(d) {
+            //     return [d.y, d.x];
+            // });
 
             // filter operation gives back a list, but since only one node should be the topparent with no parents itself, we can take the first
             var treeData = this._treeData.filter(dojoLang.hitch(this, function(e) {
@@ -316,8 +318,10 @@ define([
             }
         },
 
-        _getRadialPoint: function(x, y) {
-            return [(y = +y) * Math.cos(x -= Math.PI / 2), y * Math.sin(x)];
+        _project: function(x, y) {
+            var angle = (x - 90) / 180 * Math.PI,
+                radius = y;
+            return [radius * Math.cos(angle), radius * Math.sin(angle)];
         },
 
         _updateTree: function(source) {
@@ -341,7 +345,7 @@ define([
             childCount(0, this._root);
 
             var newHeight = d3.max(levelWidth) * this._verticalNodeDistance; // x pixels per line  
-            this._tree = this._tree.size([newHeight, this._viewerWidth]);
+            this._tree = this._tree.size([360, 300]);
 
             // Compute the new tree layout.
             this._nodes = this._tree.nodes(this._root).reverse(),
@@ -364,8 +368,8 @@ define([
                 .call(this._dragListener)
                 .attr("class", "node")
                 .attr("transform", function(d) {
-                    // return "translate(" + source.y0 + "," + source.x0 + ")";
-                    return "translate(" + self._getRadialPoint(d.x, d.y) + ")";
+                    return "translate(" + source.y0 + "," + source.x0 + ")";
+                    // return "translate(" + self.project(d.x, d.y); + ")";
                 })
                 .attr("id", function(d) {
                     return "node_" + d.guid;
@@ -439,7 +443,8 @@ define([
             var nodeUpdate = node.transition()
                 .duration(this.duration)
                 .attr("transform", function(d) {
-                    return "translate(" + d.y + "," + d.x + ")";
+                    // return "translate(" + d.y + "," + d.x + ")";
+                    return "translate(" + self._project(d.x, d.y) + ")";
                 });
 
             // Fade the text in
@@ -470,10 +475,6 @@ define([
             link.enter().insert("path", "g")
                 .attr("class", "link")
                 .style("stroke", this.linkStrokeColor)
-                // .attr("d", d3.linkRadial()
-                //     .angle(function (d) { return d.x; })
-                //     .radius(function (d) { return d.y; })
-                // )
                 .attr("d", dojoLang.hitch(this, function(d) {
                     var o = {
                         x: source.x0,
@@ -489,10 +490,7 @@ define([
             link.transition()
                 .duration(this.duration)
                 .attr("d", this._diagonal)
-                // .attr("d", d3.linkRadial()
-                //     .angle(function(d) { return d.x; })
-                //     .radius(function(d) { return d.y; })
-                // );
+
 
             // Transition exiting nodes to the parent's new position.
             link.exit().transition()
@@ -539,7 +537,7 @@ define([
             }));
             // update size of tree
             this._tree
-                .size([this._viewerHeight + 2 * this._rootOffsetY, this._maxWidth + this._rootOffsetX]);
+                .size([360, 300]);
 
             if (this._intialLoad) {
                 // update size of svg group
