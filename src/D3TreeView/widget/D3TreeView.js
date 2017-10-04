@@ -136,7 +136,8 @@ define([
             }
 
             this._tree = d3.layout.tree()
-                .size([this._viewerHeight, this._viewerWidth]);
+                .size([2 * Math.PI, 500]) // radians, 500 pixels https://github.com/d3/d3-3.x-api-reference/blob/master/Tree-Layout.md
+                .separation(function(a, b) { return (a.parent === b.parent ? 1 : 2) / a.depth; });
 
             // define a d3 diagonal projection for use by the node paths later on.
             this._diagonal = d3.svg.diagonal()
@@ -314,6 +315,11 @@ define([
                 }
             }
         },
+
+        _getRadialPoint: function(x, y) {
+            return [(y = +y) * Math.cos(x -= Math.PI / 2), y * Math.sin(x)];
+        },
+
         _updateTree: function(source) {
             // Compute the new height, function counts total children of root node and sets tree height accordingly.
             // This prevents the layout looking squashed when new nodes are made visible or looking sparse when nodes are removed
@@ -353,11 +359,13 @@ define([
                 }));
 
             // Enter any new nodes at the parent's previous position.
+            var self = this;
             var nodeEnter = node.enter().append("g")
                 .call(this._dragListener)
                 .attr("class", "node")
                 .attr("transform", function(d) {
-                    return "translate(" + source.y0 + "," + source.x0 + ")";
+                    // return "translate(" + source.y0 + "," + source.x0 + ")";
+                    return "translate(" + self._getRadialPoint(d.x, d.y) + ")";
                 })
                 .attr("id", function(d) {
                     return "node_" + d.guid;
@@ -462,6 +470,10 @@ define([
             link.enter().insert("path", "g")
                 .attr("class", "link")
                 .style("stroke", this.linkStrokeColor)
+                // .attr("d", d3.linkRadial()
+                //     .angle(function (d) { return d.x; })
+                //     .radius(function (d) { return d.y; })
+                // )
                 .attr("d", dojoLang.hitch(this, function(d) {
                     var o = {
                         x: source.x0,
@@ -476,7 +488,11 @@ define([
             // Transition links to their new position.
             link.transition()
                 .duration(this.duration)
-                .attr("d", this._diagonal);
+                .attr("d", this._diagonal)
+                // .attr("d", d3.linkRadial()
+                //     .angle(function(d) { return d.x; })
+                //     .radius(function(d) { return d.y; })
+                // );
 
             // Transition exiting nodes to the parent's new position.
             link.exit().transition()
