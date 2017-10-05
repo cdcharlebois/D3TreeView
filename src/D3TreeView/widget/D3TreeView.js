@@ -478,6 +478,7 @@ define([
                     return d.children || d._children ? "lightsteelblue" : "#fff";
                 });
 
+
             // Transition nodes to their new position.
             var nodeUpdate = node.transition()
                 .duration(this.duration)
@@ -490,6 +491,32 @@ define([
             // Fade the text in
             nodeUpdate.select("text")
                 .style("fill-opacity", 1);
+
+            /**
+             * update all the angles of the text
+             */
+            if (this.renderRadial) {
+                // nodeUpdate.select("text.nodeText") // This is an animation
+                node.select("text.nodeText") // This is just a set
+                    .attr("x", lang.hitch(this, function(d) {
+                        if (this.renderRadial) {
+                            return (d.x < 180 && !d.children) || (d.x > 180 && d.children) ? 10 : -10;
+                        } else {
+                            return d.children || d._children ? -10 : 10;
+                        }
+                    }))
+                    .attr("text-anchor", lang.hitch(this, function(d) {
+                        if (this.renderRadial) {
+                            return (d.x < 180 && !d.children) || (d.x > 180 && d.children) ? "start" : "end";
+                        } else {
+                            return d.children || d._children ? "end" : "start";
+                        }
+                    }))
+                    .style("transform", lang.hitch(this, function(d) {
+                        return (this.renderRadial ? "rotate(" + (d.x < 180 ? d.x - 90 : d.x + 90) + "deg)" : "");
+                    }));
+            }
+
 
             // Transition exiting nodes to the parent's new position.
             var nodeExit = node.exit().transition()
