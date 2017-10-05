@@ -37,7 +37,7 @@ define([
     "dojo/_base/lang",
     "dojo/text!D3TreeView/widget/template/D3TreeView.html",
     "D3TreeView/lib/d3-v3-min"
-], function(declare, _WidgetBase, _TemplatedMixin, dom, dojoDom, on, dojoStyle, dojoArray, dojoLang, widgetTemplate) {
+], function(declare, _WidgetBase, _TemplatedMixin, dom, dojoDom, on, dojoStyle, dojoArray, lang, widgetTemplate) {
     "use strict";
     // d3 is added to the window, so redefine it for programming convenience
     var d3 = window.d3;
@@ -61,6 +61,9 @@ define([
         _panSpeed: 200,
         _panBoundary: 20,
         _i: 0,
+
+        // CC
+        renderRadial: false,
 
         // dojo.declare.constructor is called to construct the widget instance. Implement to initialize non-primitive properties.
         constructor: function() {
@@ -123,7 +126,7 @@ define([
                 // now set children based on parentGuids
                 for (var k = 0; k < this._treeData.length; k++) {
                     if (this._treeData[k].parentGuid) {
-                        var parentObj = this._treeData.filter(dojoLang.hitch(this, function(e) {
+                        var parentObj = this._treeData.filter(lang.hitch(this, function(e) {
                             return e.guid == this._treeData[k].parentGuid;
                         }));
                         // filter operation gives back a list, but since guid is unique we can take the first
@@ -135,27 +138,27 @@ define([
 
             }
 
-            this._tree = d3.layout.tree()
-                .size([360, 300]); // radians, 500 pixels https://github.com/d3/d3-3.x-api-reference/blob/master/Tree-Layout.md
+            this._tree = (this.renderRadial ?
+                d3.layout.tree().size([360, 300]) :
+                d3.layout.tree().size([this._viewerHeight, this._viewerWidth]));
+
+
             // .separation(function(a, b) { return (a.parent === b.parent ? 1 : 2) / a.depth; });
 
             // define a d3 diagonal projection for use by the node paths later on.
-            this._diagonal = d3.svg.diagonal.radial()
-                .projection(function(d) { return [d.y, d.x / 180 * Math.PI]; });
-
-            // .projection(function(d) {
-            //     return [d.y, d.x];
-            // });
+            this._diagonal = (this.renderRadial ?
+                d3.svg.diagonal.radial().projection(function(d) { return [d.y, d.x / 180 * Math.PI]; }) :
+                d3.svg.diagonal().projection(function(d) { return [d.y, d.x]; }));
 
             // filter operation gives back a list, but since only one node should be the topparent with no parents itself, we can take the first
-            var treeData = this._treeData.filter(dojoLang.hitch(this, function(e) {
+            var treeData = this._treeData.filter(lang.hitch(this, function(e) {
                 return e.parentGuid === "";
             }))[0];
 
             // if data fed to widget, setup the tree
             if (treeData) {
                 // call visit function to establish maxLabelLength
-                this._visit(treeData, dojoLang.hitch(this, function(d) {
+                this._visit(treeData, lang.hitch(this, function(d) {
                     this._totalNodes++;
                     this._maxLabelLength = Math.max(d.name.length, this._maxLabelLength);
 
@@ -168,7 +171,7 @@ define([
                 this._sortTree();
 
                 // define the zoomListener which calls the zoom function on the "zoom" event constrained within the scaleExtents
-                this._zoomListener = d3.behavior.zoom().scaleExtent([0.1, 3]).on("zoom", dojoLang.hitch(this, function() { this._zoom(); }));
+                this._zoomListener = d3.behavior.zoom().scaleExtent([0.1, 3]).on("zoom", lang.hitch(this, function() { this._zoom(); }));
 
                 // create svg element
                 var baseSvg;
@@ -249,7 +252,7 @@ define([
             if (this._contextObj) {
                 _objectHandle = this.subscribe({
                     guid: this._contextObj.getGuid(),
-                    callback: dojoLang.hitch(this, function(guid) {
+                    callback: lang.hitch(this, function(guid) {
                         if (this.loggingEnabled) {
                             console.log(this.id + "update on entity with guid: " + guid);
                         }
@@ -352,13 +355,13 @@ define([
                 this._links = this._tree.links(this._nodes);
 
             // Set widths between levels based on maxLabelLength.
-            this._nodes.forEach(dojoLang.hitch(this, function(d) {
-                d.y = (d.depth * (this._maxLabelLength * this._horizontalNodeDistance));
-            }));
+            // this._nodes.forEach(lang.hitch(this, function(d) {
+            //     d.y = (d.depth * (this._maxLabelLength * this._horizontalNodeDistance));
+            // }));
 
             // Update the nodes…
             var node = this._svgGroup.selectAll("g.node")
-                .data(this._nodes, dojoLang.hitch(this, function(d) {
+                .data(this._nodes, lang.hitch(this, function(d) {
                     return d.id || (d.id = ++this._i);
                 }));
 
@@ -369,12 +372,11 @@ define([
                 .attr("class", "node")
                 .attr("transform", function(d) {
                     return "translate(" + source.y0 + "," + source.x0 + ")";
-                    // return "translate(" + self.project(d.x, d.y); + ")";
                 })
                 .attr("id", function(d) {
                     return "node_" + d.guid;
                 })
-                .on('click', dojoLang.hitch(this, function(d) {
+                .on('click', lang.hitch(this, function(d) {
                     // block collapse & expand behavior when onClickMF is defined
                     if (!this.onClickMF) {
                         this._click(d);
@@ -384,7 +386,7 @@ define([
             nodeEnter.append("circle")
                 .attr('class', 'nodeCircle')
                 .attr("r", 0)
-                .style("fill", dojoLang.hitch(this, function(d) {
+                .style("fill", lang.hitch(this, function(d) {
                     return d.children ? "lightsteelblue" : "#fff";
                 }))
                 .style("stroke", this.nodeStrokeColor)
@@ -413,10 +415,10 @@ define([
                 .attr("opacity", 0.2) // change this to zero to hide the target area
                 .style("fill", this.ghostNodeColor)
                 .attr('pointer-events', 'mouseover')
-                .on("mouseover", dojoLang.hitch(this, function(node) {
+                .on("mouseover", lang.hitch(this, function(node) {
                     this._overCircle(node);
                 }))
-                .on("mouseout", dojoLang.hitch(this, function(node) {
+                .on("mouseout", lang.hitch(this, function(node) {
                     this._outCircle(node);
                 }));
 
@@ -442,10 +444,11 @@ define([
             // Transition nodes to their new position.
             var nodeUpdate = node.transition()
                 .duration(this.duration)
-                .attr("transform", function(d) {
-                    // return "translate(" + d.y + "," + d.x + ")";
-                    return "translate(" + self._project(d.x, d.y) + ")";
-                });
+                .attr("transform", lang.hitch(this, function(d) {
+                    return "translate(" + (this.renderRadial ?
+                        this._project(d.x, d.y) :
+                        (d.y + "," + d.x)) + ")";
+                }));
 
             // Fade the text in
             nodeUpdate.select("text")
@@ -475,7 +478,7 @@ define([
             link.enter().insert("path", "g")
                 .attr("class", "link")
                 .style("stroke", this.linkStrokeColor)
-                .attr("d", dojoLang.hitch(this, function(d) {
+                .attr("d", lang.hitch(this, function(d) {
                     var o = {
                         x: source.x0,
                         y: source.y0
@@ -495,7 +498,7 @@ define([
             // Transition exiting nodes to the parent's new position.
             link.exit().transition()
                 .duration(this.duration)
-                .attr("d", dojoLang.hitch(this, function(d) {
+                .attr("d", lang.hitch(this, function(d) {
                     var o = {
                         x: source.x,
                         y: source.y
@@ -509,7 +512,7 @@ define([
 
             // determine the maximum width of the SVG element by iterating through nodes and checking coordinates 
             this._maxWidth = 0;
-            this._nodes.forEach(dojoLang.hitch(this, function(d, i) {
+            this._nodes.forEach(lang.hitch(this, function(d, i) {
                 d.x0 = d.x;
                 d.y0 = d.y;
                 if (this._viewerMinHeight === 0) {
@@ -570,7 +573,7 @@ define([
         _collapse: function(d) {
             if (d.children) {
                 d._children = d.children;
-                d._children.forEach(dojoLang.hitch(this, function(i) { this._collapse(i); }));
+                d._children.forEach(lang.hitch(this, function(i) { this._collapse(i); }));
                 d.children = [];
             }
             if (d) {
@@ -581,7 +584,7 @@ define([
 
             if (d._children) {
                 d.children = d._children;
-                d.children.forEach(dojoLang.hitch(this, function(i) { this._expand(i); }));
+                d.children.forEach(lang.hitch(this, function(i) { this._expand(i); }));
             }
             if (d) {
                 this._updateTree(d);
@@ -593,7 +596,7 @@ define([
             d3.selectAll('.ghostCircle').attr('class', 'ghostCircle show');
             d3.select(domNode).attr('class', 'node activeDrag');
 
-            this._svgGroup.selectAll("g.node").sort(dojoLang.hitch(this, function(a, b) { // select the parent and sort the path's
+            this._svgGroup.selectAll("g.node").sort(lang.hitch(this, function(a, b) { // select the parent and sort the path's
                 if (a.id != this._draggingNode.id) return 1; // a is not the hovered element, send "a" to the back
                 else return -1; // a is the hovered element, bring "a" to the front
             }));
@@ -612,7 +615,7 @@ define([
                 this._svgGroup.selectAll("g.node")
                     .data(this._tree.nodes(d), function(d) {
                         return d.id;
-                    }).filter(dojoLang.hitch(this, function(d, i) {
+                    }).filter(lang.hitch(this, function(d, i) {
 
                         if (d.id == this._draggingNode.id) {
                             return false;
@@ -622,7 +625,7 @@ define([
             }
 
             // remove parent link
-            this._svgGroup.selectAll('path.link').filter(dojoLang.hitch(this, function(d, i) {
+            this._svgGroup.selectAll('path.link').filter(lang.hitch(this, function(d, i) {
 
                 if (d.target.id == this._draggingNode.id) {
                     return true;
@@ -674,7 +677,7 @@ define([
             // if drag and drop is disabled only call expand / collapse behavior
             // a drag event is also triggered when clicking. 
             this._dragListener = d3.behavior.drag()
-                .on("dragstart", dojoLang.hitch(this, function(d) {
+                .on("dragstart", lang.hitch(this, function(d) {
                     if (d == this._root) {
                         return;
                     }
@@ -689,7 +692,7 @@ define([
                 // DRAG AND DROP
                 // also add dragstart and dragend events
                 this._dragListener = this._dragListener
-                    .on("drag", dojoLang.hitch(this, function(d) {
+                    .on("drag", lang.hitch(this, function(d) {
 
                         if (d == this._root) {
                             return;
@@ -730,7 +733,7 @@ define([
                         var node = d3.select("node_" + d.guid);
                         node.attr("transform", "translate(" + d.y0 + "," + d.x0 + ")");
                         this._updateTempConnector();
-                    })).on("dragend", dojoLang.hitch(this, function(d) {
+                    })).on("dragend", lang.hitch(this, function(d) {
                         if (d == this._root) {
                             return;
                         }
@@ -761,7 +764,7 @@ define([
                     }));
 
                 // SAVE NODE CHANGES
-                on(this.svgBtnSaveNodes, "click", dojoLang.hitch(this, function() {
+                on(this.svgBtnSaveNodes, "click", lang.hitch(this, function() {
                     this._saveChanges(this._root);
                 }));
                 this.svgBtnSaveNodes.innerHTML += this._saveBtnText;
@@ -773,13 +776,13 @@ define([
 
                 // COLLAPSE ALL
                 this.svgBtnCollapseAll.innerHTML += this._collapeAllBtnText;
-                on(this.svgBtnCollapseAll, "click", dojoLang.hitch(this, function() {
+                on(this.svgBtnCollapseAll, "click", lang.hitch(this, function() {
                     this._collapse(this._root);
                 }));
 
                 // EXPAND ALL
                 this.svgBtnExpandAll.innerHTML += this._expandAllBtnText;
-                on(this.svgBtnExpandAll, "click", dojoLang.hitch(this, function() {
+                on(this.svgBtnExpandAll, "click", lang.hitch(this, function() {
                     this._expand(this._root);
                 }));
             } else {
@@ -830,10 +833,10 @@ define([
                     applyto: 'selection',
                     guids: [this._contextObj.getGuid()]
                 },
-                callback: dojoLang.hitch(this, function(result) {
+                callback: lang.hitch(this, function(result) {
                     this._drawChart(result);
                 }),
-                error: dojoLang.hitch(this, function(error) {
+                error: lang.hitch(this, function(error) {
                     this._hideProgress();
                     console.log(error.description);
                 })
@@ -859,11 +862,11 @@ define([
                 },
                 progress: "modal",
                 origin: this.mxform,
-                error: dojoLang.hitch(this, function(error) {
+                error: lang.hitch(this, function(error) {
                     console.log(error.description);
                     console.log(d.guid);
                 }),
-                callback: dojoLang.hitch(this, function(result) {})
+                callback: lang.hitch(this, function(result) {})
             }, this);
         },
         _saveChanges: function() {
@@ -876,15 +879,15 @@ define([
                 // node.parentGuid is the original parent. node.parent.guid is the new parent set after dragging 
                 if (this._nodes[n].parent && this._nodes[n].parent.guid !== this._nodes[n].parentGuid) {
                     // get old parent MxObject based on child node
-                    var oldParent = this._nodeObjects.filter(dojoLang.hitch(this, function(e) {
+                    var oldParent = this._nodeObjects.filter(lang.hitch(this, function(e) {
                         return e._guid == this._nodes[n].parentGuid;
                     }))[0];
                     // get new parent MxObject based on child node
-                    var newParent = this._nodeObjects.filter(dojoLang.hitch(this, function(e) {
+                    var newParent = this._nodeObjects.filter(lang.hitch(this, function(e) {
                         return e._guid == this._nodes[n].parent.guid;
                     }))[0];
                     // get MxObject based on child node
-                    var child = this._nodeObjects.filter(dojoLang.hitch(this, function(e) {
+                    var child = this._nodeObjects.filter(lang.hitch(this, function(e) {
                         return e._guid == this._nodes[n].guid;
                     }))[0];
 
@@ -919,10 +922,10 @@ define([
                 },
                 progress: "modal",
                 origin: this.mxform,
-                error: dojoLang.hitch(this, function(error) {
+                error: lang.hitch(this, function(error) {
                     console.log(error.description);
                 }),
-                callback: dojoLang.hitch(this, function(result) {})
+                callback: lang.hitch(this, function(result) {})
             }, this);
 
         },

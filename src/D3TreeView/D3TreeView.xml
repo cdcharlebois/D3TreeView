@@ -111,6 +111,11 @@
             <category>Appearance</category>
             <description>The duration of the animation in ms. So, 1000 is 1 second.</description>
         </property>
+		<property key="renderRadial" type="boolean" required="true" defaultValue="false">
+            <caption>Radial</caption>
+            <category>Appearance</category>
+            <description>Render the tree as a circle ◯</description>
+        </property>
 		<property key="_backgroundColor" type="string" required="false" defaultValue="transparent">
             <caption>Background Color</caption>
             <category>Formatting</category>
