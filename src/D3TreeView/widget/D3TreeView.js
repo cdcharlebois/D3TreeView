@@ -212,9 +212,16 @@ define([
                 this._expand(this._root);
 
                 // reposition root based on offsets
-                d3.select('g').transition()
-                    .duration(this.duration)
-                    .attr("transform", "translate(" + this._rootOffsetX + "," + this._rootOffsetY + ")");
+                if (this.renderRadial) {
+                    d3.select('g').transition()
+                        .duration(this.duration)
+                        .attr("transform", "translate(" + this._viewerWidth / 2 + "," + this._viewerHeight / 2 + ")");
+                } else {
+                    d3.select('g').transition()
+                        .duration(this.duration)
+                        .attr("transform", "translate(" + this._rootOffsetX + "," + this._rootOffsetY + ")");
+                }
+
             }
 
             this._hideProgress();
