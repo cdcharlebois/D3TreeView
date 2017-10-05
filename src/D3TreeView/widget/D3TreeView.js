@@ -544,9 +544,16 @@ define([
 
             if (this._intialLoad) {
                 // update size of svg group
-                d3.select("#tree-container svg")
-                    .attr("width", this._rightmostNode + ((this._maxLabelLength * 20)))
-                    .attr("height", this._viewerHeight + 2 * this._rootOffsetY);
+                if (this.renderRadial) {
+                    d3.select("#tree-container svg")
+                        .attr("width", this._viewerWidth)
+                        .attr("height", this._viewerHeight);
+                } else {
+                    d3.select("#tree-container svg")
+                        .attr("width", this._rightmostNode + ((this._maxLabelLength * 20)))
+                        .attr("height", this._viewerHeight + 2 * this._rootOffsetY);
+                }
+
             }
             if (this.loggingEnabled) {
                 console.log("calculated maxHeight based on tree: " + this._viewerHeight);
