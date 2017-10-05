@@ -212,6 +212,9 @@ define([
                 this._expand(this._root);
 
                 // reposition root based on offsets
+                /**
+                 * If it's radial, we start the root in the middle of the screen
+                 */
                 if (this.renderRadial) {
                     d3.select('g').transition()
                         .duration(this.duration)
@@ -377,9 +380,12 @@ define([
             var nodeEnter = node.enter().append("g")
                 .call(this._dragListener)
                 .attr("class", "node")
-                .attr("transform", function(d) {
-                    return "translate(" + source.y0 + "," + source.x0 + ")";
-                })
+                .attr("transform", lang.hitch(this, function(d) {
+                    /**
+                     * If it's radial, start from the parent's projected position.
+                     */
+                    return "translate(" + (this.renderRadial ? this._project(source.x0, source.y0) : (source.y0 + "," + source.x0)) + ")";
+                }))
                 .attr("id", function(d) {
                     return "node_" + d.guid;
                 })
@@ -399,21 +405,45 @@ define([
                 .style("stroke", this.nodeStrokeColor)
                 .style("stroke-width", this.nodeStrokeWidth);
 
+            /**
+             * the really dumb d.x < 180 === !d.children syntax is the same as:
+             * if d.x < 180 && !d.children || d.x > 180 && d.children
+             * so I made it the more readable one.
+             * in short, if a node is on the right side (<180) and doesn't have children,
+             *      the text should appear right of the node (x=10 & text-anchor=start)
+             * if the node is on the left side (>180) and doesn't have children,
+             *      the text should appear left of the node (x=-10 & text-anchor=end)
+             * that is opposite if the node has children on each side.
+             */
+            // if (!this.renderRadial) {
             nodeEnter.append("text")
-                .attr("x", function(d) {
-                    return d.children || d._children ? -10 : 10;
-                })
+                .attr("x", lang.hitch(this, function(d) {
+                    if (this.renderRadial) {
+                        return (d.x < 180 && !d.children) || (d.x > 180 && d.children) ? 10 : -10;
+                    } else {
+                        return d.children || d._children ? -10 : 10;
+                    }
+                }))
                 .attr("dy", ".35em")
                 .attr('class', 'nodeText')
-                .attr("text-anchor", function(d) {
-                    return d.children || d._children ? "end" : "start";
-                })
+                .attr("text-anchor", lang.hitch(this, function(d) {
+                    if (this.renderRadial) {
+                        return (d.x < 180 && !d.children) || (d.x > 180 && d.children) ? "start" : "end";
+                    } else {
+                        return d.children || d._children ? "end" : "start";
+                    }
+                }))
                 .text(function(d) {
                     return d.name;
                 })
                 .style("fill-opacity", 0)
                 .style("font-size", this.fontSize + "px")
-                .style("font-color", this.fontColor + "px");
+                .style("font-color", this.fontColor + "px")
+                .style("transform", lang.hitch(this, function(d) {
+                    return (this.renderRadial ? "rotate(" + (d.x < 180 ? d.x - 90 : d.x + 90) + "deg)" : "");
+                }));
+            // }
+
 
             // ghost node to give us mouseover in a radius around it
             nodeEnter.append("circle")
@@ -430,16 +460,16 @@ define([
                 }));
 
             // Update the text to reflect whether node has children or not.
-            node.select('text')
-                .attr("x", function(d) {
-                    return d.children || d._children ? -10 : 10;
-                })
-                .attr("text-anchor", function(d) {
-                    return d.children || d._children ? "end" : "start";
-                })
-                .text(function(d) {
-                    return d.name;
-                });
+            // node.select('text')
+            //     .attr("x", function(d) {
+            //         return d.children || d._children ? -10 : 10;
+            //     })
+            //     .attr("text-anchor", function(d) {
+            //         return d.children || d._children ? "end" : "start";
+            //     })
+            //     .text(function(d) {
+            //         return d.name;
+            //     });
 
             // Change the circle fill depending on whether it has children
             node.select("circle.nodeCircle")
@@ -464,9 +494,9 @@ define([
             // Transition exiting nodes to the parent's new position.
             var nodeExit = node.exit().transition()
                 .duration(this.duration)
-                .attr("transform", function(d) {
-                    return "translate(" + source.y + "," + source.x + ")";
-                })
+                .attr("transform", lang.hitch(this, function(d) {
+                    return "translate(" + (this.renderRadial ? this._project(source.x, source.y) : (source.y + "," + source.x)) + ")";
+                }))
                 .remove();
 
             nodeExit.select("circle")
